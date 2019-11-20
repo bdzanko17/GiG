@@ -1,5 +1,5 @@
 /**********************************************************************
- pping - Pollere Basic Passive Ping
+ pping - Pollere Basic Passive Ping -- Haris Tarahija
 
  Copyright (C) 2017  Kathleen Nichols, Pollere, Inc.
 
@@ -21,7 +21,7 @@
  Usage:
     pping -i interfacename
  or
-    pping -r pcapfilename
+    pping -r pcapfilenamehh
  
  Typing pping without arguments gives a list of available optional arguments.
 
