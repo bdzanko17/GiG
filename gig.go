@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	device       string = "eno1"
+	device       string = "wlp6s0"
 	snapshot_len int32  = 1024
 	promiscuous  bool   = false
 	err          error
@@ -85,5 +85,6 @@ func main() {
 		fmt.Println("vrijeme:", vrijeme)
 
 	}
+	fmt.Print("e")
 
 }
