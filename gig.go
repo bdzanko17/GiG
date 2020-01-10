@@ -28,7 +28,17 @@ var (
 	dststr       string
 )
 
+type Flowrecord struct {
+	last_time float64
+	flowname  string
+}
+
 func main() {
+	Flows := make(map[string]bool)
+	TimeFlow := make(map[string]int64)
+	var vrijeme int64
+	var br_paketa int
+	var br_flow int
 
 	// Open device
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
@@ -46,6 +56,8 @@ func main() {
 	// Use the handle as a packet source to process all packets
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
+		br_paketa++
+
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
 		if ipLayer != nil {
 			ip, _ := ipLayer.(*layers.IPv4)
@@ -61,30 +73,34 @@ func main() {
 
 				TSval = binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4])
 				TSerc = binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8])
-				fmt.Println(TSval)
-				fmt.Println(TSerc)
-
 			}
+
 			source_port = tcp.SrcPort.String()
 			dest_port = tcp.DstPort.String()
-			fmt.Println(source_port)
-			fmt.Println(dest_port)
+
 		}
 		srcstr = source_ip.String() + ":" + source_port
 		dststr = dest_ip.String() + ":" + dest_port
-		fmt.Println(srcstr)
-		fmt.Println(dststr)
 
-		vrijeme_sat := time.Now().Hour()
-		vrijeme_min := time.Now().Minute()
-		vrijeme_sec := time.Now().Second()
-		vrijeme_nano := float64(time.Now().Nanosecond())
-		vrijeme_string := time.Now().String()
-		vrijeme := vrijeme_sat*3600 + vrijeme_min*60 + vrijeme_sec + int(vrijeme_nano/1e6)
-		fmt.Println("vrijeme:", vrijeme_string)
-		fmt.Println("vrijeme:", vrijeme)
+		var fstr string
+		fstr = srcstr + dststr
 
+		vrijeme = time.Now().UnixNano()
+		_, ok := Flows[dststr+srcstr]
+		if ok {
+			Flows[fstr] = true
+			Flows[dststr+srcstr] = true
+			TimeFlow[dststr+srcstr] = vrijeme
+			fmt.Println("RTT: ", (TimeFlow[dststr+srcstr]-TimeFlow[fstr])/1000, "ms")
+			delete(Flows, fstr)
+			br_flow++
+		}
+
+		Flows[fstr] = false
+		TimeFlow[fstr] = vrijeme
+
+		fmt.Println(dststr + srcstr)
 	}
-	fmt.Print("e")
+	//
 
 }
