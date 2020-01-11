@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	device       string = "wlp6s0"
+	device       string = "wlp2s0"
 	snapshot_len int32  = 1024
 	promiscuous  bool   = false
 	err          error
-	timeout      time.Duration = 1 * time.Second
+	timeout      time.Duration = -1 * time.Millisecond
 	handle       *pcap.Handle
 	TSval        uint32 = 0
 	TSerc        uint32 = 0
@@ -30,7 +30,7 @@ var (
 )
 
 type Flowrecord struct {
-	last_time int64
+	last_time time.Time
 	flowname  string
 	tsval     uint32
 	tsecr     uint32
@@ -48,6 +48,7 @@ func main() {
 	fmt.Println("ADRESA: ", localAddr.IP)
 
 	fmt.Println("First packet at: ", time.Now())
+	fmt.Println(time.Since(time.Now()))
 	//Flows := make(map[string]bool)
 	//TimeFlow := make(map[string]int64)
 	//var vrijeme int64
@@ -72,7 +73,6 @@ func main() {
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
 		br_paketa++
-
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
 		if ipLayer != nil {
 			ip, _ := ipLayer.(*layers.IPv4)
@@ -84,9 +84,8 @@ func main() {
 		if tcpLayer != nil {
 			tcp, _ := tcpLayer.(*layers.TCP)
 
-			if len(tcp.Options) >= 3 &&
-				binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4]) > 0 ||
-				binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8]) > 0 {
+			if len(tcp.Options) >= 3 && len(tcp.Options[2].OptionData) > 0 && (binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4]) > 0 ||
+				binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8]) > 0) {
 
 				TSval = binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4])
 				TSerc = binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8])
@@ -102,23 +101,27 @@ func main() {
 		fstr = srcstr + dststr
 		fmt.Println(fstr)
 
-		var captm int64
-		captm = time.Now().UnixNano()
-		var RTT int64
-		RTT = 0
-		var x Flowrecord
+		x := Flowrecord{
+			last_time: time.Now(),
+			flowname:  "",
+			tsval:     0,
+			tsecr:     0,
+		}
 		x.flowname = fstr
-
+		fmt.Println(localAddr.IP)
 		_, ok := Flov[dststr+srcstr]
-		if ok && TSerc == Flov[dststr+srcstr].tsval && source_ip.String() != localAddr.String() {
-
-			RTT = captm - Flov[dststr+srcstr].last_time
-			println("RTT: ", RTT/1000)
+		print("DA LI JE OK ")
+		print(ok)
+		println("\n")
+		println(source_ip.String())
+		if ok && TSerc == Flov[dststr+srcstr].tsval && source_ip.String() != localAddr.IP.String() {
+			var RTT = time.Since(Flov[dststr+srcstr].last_time).String()
+			println("RTT: ", RTT)
 			delete(Flov, fstr)
 			delete(Flov, dststr+srcstr)
 			br_flow++
 		} else {
-			x.last_time = time.Now().UnixNano()
+			x.last_time = time.Now()
 			x.tsval = TSval
 			x.tsecr = TSerc
 			Flov[fstr] = x
