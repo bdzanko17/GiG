@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	device       string = "wlp2s0"
+	device       string = "wlp6s0"
 	snapshot_len int32  = 1024
 	promiscuous  bool   = false
 	err          error
@@ -37,6 +37,7 @@ type Flowrecord struct {
 }
 
 func main() {
+	//Getting the IP address of device
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		log.Fatal(err)
@@ -45,18 +46,11 @@ func main() {
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
-	fmt.Println("ADRESA: ", localAddr.IP)
-
 	fmt.Println("First packet at: ", time.Now())
-	fmt.Println(time.Since(time.Now()))
-	//Flows := make(map[string]bool)
-	//TimeFlow := make(map[string]int64)
-	//var vrijeme int64
-	var br_paketa int
-	var br_flow int
-	Flov := make(map[string]Flowrecord)
 
-	// Open device
+	Flow := make(map[string]Flowrecord)
+
+	// Open device to start listening
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
 	if err != nil {
 		log.Fatal(err)
@@ -72,7 +66,6 @@ func main() {
 	// Use the handle as a packet source to process all packets
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
-		br_paketa++
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
 		if ipLayer != nil {
 			ip, _ := ipLayer.(*layers.IPv4)
@@ -80,12 +73,14 @@ func main() {
 			dest_ip = ip.DstIP
 		}
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
-
+		//Verify if a packet has TCP layer
 		if tcpLayer != nil {
 			tcp, _ := tcpLayer.(*layers.TCP)
 
-			if len(tcp.Options) >= 3 && len(tcp.Options[2].OptionData) > 0 && (binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4]) > 0 ||
-				binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8]) > 0) {
+			// Taking Timestamps from TCP options(if included)(Tsval and Tsecr)
+			if len(tcp.Options) >= 3 && len(tcp.Options[2].OptionData) > 0 &&
+				(binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4]) > 0 ||
+					binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8]) > 0) {
 
 				TSval = binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4])
 				TSerc = binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8])
@@ -99,33 +94,33 @@ func main() {
 		dststr = dest_ip.String() + ":" + dest_port
 		var fstr string
 		fstr = srcstr + dststr
-		fmt.Println(fstr)
-
+		//Creating structure about Flows and TCP connections
 		x := Flowrecord{
 			last_time: time.Now(),
 			flowname:  "",
 			tsval:     0,
 			tsecr:     0,
 		}
+
 		x.flowname = fstr
-		fmt.Println(localAddr.IP)
-		_, ok := Flov[dststr+srcstr]
-		print("DA LI JE OK ")
-		print(ok)
-		println("\n")
-		println(source_ip.String())
-		if ok && TSerc == Flov[dststr+srcstr].tsval && source_ip.String() != localAddr.IP.String() {
-			var RTT = time.Since(Flov[dststr+srcstr].last_time).String()
+		//Checking for bidirectional flow(if yes calculate RTT)
+		_, ok := Flow[dststr+srcstr]
+		if ok && TSerc == Flow[dststr+srcstr].tsval && source_ip.String() != localAddr.IP.String() {
+			var RTT = time.Since(Flow[dststr+srcstr].last_time).String()
+			h, m, s := time.Now().Clock()
+			print(h, ":", m, ":", s, "  KFor flow: ", fstr, " calculated RTT: ")
 			println("RTT: ", RTT)
-			delete(Flov, fstr)
-			delete(Flov, dststr+srcstr)
-			br_flow++
+			delete(Flow, fstr)
+			delete(Flow, dststr+srcstr)
+
+			//IF no insert, Flow in Flowrecords
 		} else {
 			x.last_time = time.Now()
 			x.tsval = TSval
 			x.tsecr = TSerc
-			Flov[fstr] = x
+			Flow[fstr] = x
 		}
+		//Back on listening
 
 	}
 
