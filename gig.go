@@ -8,6 +8,7 @@ import (
 	"github.com/google/gopacket/pcap"
 	"log"
 	"net"
+
 	"time"
 )
 
@@ -29,16 +30,30 @@ var (
 )
 
 type Flowrecord struct {
-	last_time float64
+	last_time int64
 	flowname  string
+	tsval     uint32
+	tsecr     uint32
 }
 
 func main() {
-	Flows := make(map[string]bool)
-	TimeFlow := make(map[string]int64)
-	var vrijeme int64
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	fmt.Println("ADRESA: ", localAddr.IP)
+
+	fmt.Println("First packet at: ", time.Now())
+	//Flows := make(map[string]bool)
+	//TimeFlow := make(map[string]int64)
+	//var vrijeme int64
 	var br_paketa int
 	var br_flow int
+	Flov := make(map[string]Flowrecord)
 
 	// Open device
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
@@ -63,13 +78,15 @@ func main() {
 			ip, _ := ipLayer.(*layers.IPv4)
 			source_ip = ip.SrcIP
 			dest_ip = ip.DstIP
-			fmt.Println(source_ip)
-			fmt.Println(dest_ip)
 		}
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
+
 		if tcpLayer != nil {
 			tcp, _ := tcpLayer.(*layers.TCP)
-			if len(tcp.Options) >= 3 {
+
+			if len(tcp.Options) >= 3 &&
+				binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4]) > 0 ||
+				binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8]) > 0 {
 
 				TSval = binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4])
 				TSerc = binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8])
@@ -81,26 +98,32 @@ func main() {
 		}
 		srcstr = source_ip.String() + ":" + source_port
 		dststr = dest_ip.String() + ":" + dest_port
-
 		var fstr string
 		fstr = srcstr + dststr
+		fmt.Println(fstr)
 
-		vrijeme = time.Now().UnixNano()
-		_, ok := Flows[dststr+srcstr]
-		if ok {
-			Flows[fstr] = true
-			Flows[dststr+srcstr] = true
-			TimeFlow[dststr+srcstr] = vrijeme
-			fmt.Println("RTT: ", (TimeFlow[dststr+srcstr]-TimeFlow[fstr])/1000, "ms")
-			delete(Flows, fstr)
+		var captm int64
+		captm = time.Now().UnixNano()
+		var RTT int64
+		RTT = 0
+		var x Flowrecord
+		x.flowname = fstr
+
+		_, ok := Flov[dststr+srcstr]
+		if ok && TSerc == Flov[dststr+srcstr].tsval && source_ip.String() != localAddr.String() {
+
+			RTT = captm - Flov[dststr+srcstr].last_time
+			println("RTT: ", RTT/1000)
+			delete(Flov, fstr)
+			delete(Flov, dststr+srcstr)
 			br_flow++
+		} else {
+			x.last_time = time.Now().UnixNano()
+			x.tsval = TSval
+			x.tsecr = TSerc
+			Flov[fstr] = x
 		}
 
-		Flows[fstr] = false
-		TimeFlow[fstr] = vrijeme
-
-		fmt.Println(dststr + srcstr)
 	}
-	//
 
 }
