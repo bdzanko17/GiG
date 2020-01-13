@@ -116,19 +116,15 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 }
 
 func main() {
-
-	x := flag.String("i", "wlp6s0", "a string")
-	y := flag.Int("maxp", -1, "an int")
-	z := flag.Int("maxt", -1, "an int")
+	//Insert options from CMD, -i -> for interface name, -maxp for max number of packets and -maxt for maximum capture time
+	x := flag.String("i", "wlp6s0", "Interface name")
+	y := flag.Int("maxp", -1, "Max number of packets to capture")
+	z := flag.Int("maxt", -1, "Capture time")
 	flag.Parse()
 
 	device = *x
 	max_pkt = *y
 	max_age = *z
-
-	fmt.Println("ISPISI STRING: ", max_pkt)
-	fmt.Println("ISPISI STRING: ", max_age)
-	fmt.Println("ISPISI STRING: ", device)
 
 	//Getting the IP address of device
 	conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -152,6 +148,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ProcessPacket(handle, localAddr.IP.String()) // Use the handle as a packet source to process all packets
+	// Use the handle as a packet source to process all packets and Local IP address for flow detection
+	ProcessPacket(handle, localAddr.IP.String())
 
 }
