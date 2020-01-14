@@ -1,3 +1,25 @@
+/*
+ *    goDASH, golang client emulator for DASH video streaming
+ *    Copyright (c) 2020, Benjamin Džanko, Edin Ibragić, Almedina Kerla, Merjema Šetić, Haris Tarahija, Faculty of Electrical Engineering Sarajevo
+ *                                            [bdzako1,eibragic1,akerla2,msetic1,htarahija1]@etf.unsa.ba)
+ *                      Telecommunications Software Engineering, University of Sarajevo
+
+ *    This program is free software; you can redistribute it and/or
+ *    modify it under the terms of the GNU General Public License
+ *    as published by the Free Software Foundation; either version 2
+ *    of the License, or (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ *    02110-1301, USA.
+ */
+
 package main
 
 import (
@@ -126,15 +148,15 @@ func main() {
 	max_pkt = *y
 	max_age = *z
 
-	//Getting the IP address of device
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	////Getting the IP address of device
+	//conn, err := net.Dial("udp", "8.8.8.8:80")
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//defer conn.Close()
+	//
+	//localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	// Open device to start listening
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
@@ -149,6 +171,6 @@ func main() {
 		log.Fatal(err)
 	}
 	// Use the handle as a packet source to process all packets and Local IP address for flow detection
-	ProcessPacket(handle, localAddr.IP.String())
+	ProcessPacket(handle, "10.0.0.1")
 
 }
