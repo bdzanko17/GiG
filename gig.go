@@ -3,7 +3,6 @@
  *    Copyright (c) 2020, Benjamin Džanko, Edin Ibragić, Almedina Kerla, Merjema Šetić, Haris Tarahija, Faculty of Electrical Engineering Sarajevo
  *                                            [bdzako1,eibragic1,akerla2,msetic1,htarahija1]@etf.unsa.ba)
  *                      Telecommunications Software Engineering, University of Sarajevo
-
  *    This program is free software; you can redistribute it and/or
  *    modify it under the terms of the GNU General Public License
  *    as published by the Free Software Foundation; either version 2
@@ -31,13 +30,14 @@ import (
 	"github.com/google/gopacket/pcap"
 	"log"
 	"net"
+	"strings"
 	"time"
 )
 
 var (
-	device       string = "wlp6s0" //default
-	max_pkt      int    = -1       // default
-	max_age      int    = -1       //default
+	device       string = "eno1" //default
+	max_pkt      int    = -1     // default
+	max_age      int    = -1     //default
 	snapshot_len int32  = 1024
 	promiscuous  bool   = false
 	err          error
@@ -51,6 +51,9 @@ var (
 	dest_port    string
 	srcstr       string
 	dststr       string
+	ports        []string
+	fstr         string
+	start        time.Time
 )
 
 type Flowrecord struct {
@@ -62,7 +65,6 @@ type Flowrecord struct {
 
 func ProcessPacket(handle *pcap.Handle, localAddr string) {
 
-	var start = time.Now()
 	var counter int = 0
 
 	Flow := make(map[string]Flowrecord)
@@ -72,6 +74,7 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
+		start = time.Now()
 		counter++
 		if (counter > max_pkt && max_pkt != -1) || (int(time.Since(start)) > max_age && max_age != -1) {
 			return
@@ -94,6 +97,10 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 
 				TSval = binary.BigEndian.Uint32(tcp.Options[2].OptionData[:4])
 				TSerc = binary.BigEndian.Uint32(tcp.Options[2].OptionData[4:8])
+
+			} else {
+				continue
+				fmt.Println("XD")
 			}
 
 			source_port = tcp.SrcPort.String()
@@ -102,7 +109,6 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 		}
 		srcstr = source_ip.String() + ":" + source_port
 		dststr = dest_ip.String() + ":" + dest_port
-		var fstr string
 
 		fstr = srcstr + dststr
 
@@ -116,6 +122,7 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 
 		x.flowname = fstr
 		//Checking for bidirectional flow(if yes calculate RTT)
+
 		_, ok := Flow[dststr+srcstr]
 		if ok && TSerc == Flow[dststr+srcstr].tsval && source_ip.String() != localAddr {
 			var RTT = time.Since(Flow[dststr+srcstr].last_time).String()
@@ -127,7 +134,7 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 
 			//IF no insert, Flow in Flowrecords
 		} else {
-			x.last_time = time.Now()
+			x.last_time = start
 			x.tsval = TSval
 			x.tsecr = TSerc
 			Flow[fstr] = x
@@ -138,25 +145,27 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 }
 
 func main() {
+
 	//Insert options from CMD, -i -> for interface name, -maxp for max number of packets and -maxt for maximum capture time
-	x := flag.String("i", "wlp6s0", "Interface name")
+	x := flag.String("i", "eno1", "Interface name")
 	y := flag.Int("maxp", -1, "Max number of packets to capture")
 	z := flag.Int("maxt", -1, "Capture time")
+	p := flag.String("p", "80,443", "Sniffing port/ports")
 	flag.Parse()
 
 	device = *x
 	max_pkt = *y
 	max_age = *z
 
-	////Getting the IP address of device
-	//conn, err := net.Dial("udp", "8.8.8.8:80")
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//
-	//defer conn.Close()
-	//
-	//localAddr := conn.LocalAddr().(*net.UDPAddr)
+	//Getting the IP address of device
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	// Open device to start listening
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
@@ -165,12 +174,23 @@ func main() {
 	}
 	defer handle.Close()
 
-	var filter string = "tcp and port 80"
+	ports = strings.Split(*p, ",")
+	var filter string = "tcp and port "
+
+	for indeks, element := range ports {
+
+		if indeks < len(ports)-1 {
+			filter += element + " or "
+		} else {
+			filter += element
+		}
+	}
+	fmt.Println(filter)
 	err = handle.SetBPFFilter(filter)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Use the handle as a packet source to process all packets and Local IP address for flow detection
-	ProcessPacket(handle, "10.0.0.1")
+	ProcessPacket(handle, localAddr.IP.String())
 
 }
