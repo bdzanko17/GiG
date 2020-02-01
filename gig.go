@@ -70,7 +70,7 @@ func ProcessPacket(handle *pcap.Handle, localAddr string) {
 	Flow := make(map[string]Flowrecord)
 	RTT_sumary := make(map[string]string)
 
-	fmt.Println("First packet at: ", time.Now())
+	fmt.Println("Started sniffing at: ", time.Now())
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
